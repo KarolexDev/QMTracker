@@ -240,17 +240,6 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
         }
     }
 
-    private void markSettingsCustom() {
-        this.memoryBank.metadata().setUsesGlobalDefaults(false);
-        refreshGlobalDefaultsButton();
-    }
-
-    private void refreshGlobalDefaultsButton() {
-        if (this.saveGlobalDefaultsButton != null) {
-            this.saveGlobalDefaultsButton.active = !this.memoryBank.metadata().usesGlobalDefaults();
-        }
-    }
-
     private void setupSettings(int height) {
         settingsTabSelector = this.addRenderableWidget(new StringSelectorWidget<>(this.left + GuiConstants.MARGIN,
                                                                                   this.top + SETTINGS_TOP,
