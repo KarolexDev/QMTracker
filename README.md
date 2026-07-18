@@ -33,3 +33,11 @@ Chest Tracker embeds [Where Is It](https://modrinth.com/mod/where-is-it-port), [
 Press Y to search by an Item Stack; this uses Where Is It's keybind.
 
 Press GRAVE ```[ ` ]``` to open the main GUI. In the GUI, click an item to search for it in your current dimension. Use the search bar and it's various filters to narrow down your search.
+
+## 🛠️ Development Setup
+This project depends on the `JackFredLib` and `WhereIsIt` libraries, hosted on GitHub Packages, which requires authentication to download even public packages. To build/sync locally:
+
+1. Copy `.env.example` to `.env`.
+2. Create a GitHub Personal Access Token (classic) with the `read:packages` scope: https://github.com/settings/tokens
+3. Fill in `GITHUB_ACTOR` (your GitHub username) and `GITHUB_TOKEN` (the token) in `.env`.
+4. Sync/build with Gradle as normal.

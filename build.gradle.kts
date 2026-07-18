@@ -6,13 +6,23 @@ import net.fabricmc.loom.task.RemapJarTask
 import org.ajoberstar.grgit.Grgit
 import red.jackf.GenerateChangelogTask
 import red.jackf.UpdateDependenciesTask
+import io.github.klahap.dotenv.DotEnvBuilder.Companion.dotEnv
 
 plugins {
     id("maven-publish")
     id("fabric-loom") version "1.14-SNAPSHOT"
     id("com.github.breadmoirai.github-release") version "2.5.2"
     id("org.ajoberstar.grgit") version "5.3.0"
+    id("io.github.klahap.dotenv") version "1.1.3"
     id("me.modmuss50.mod-publish-plugin") version "0.8.3"
+}
+
+// Applying the dotenv plugin alone does nothing; it only provides this builder API.
+// Real environment variables (e.g. CI secrets) take precedence over .env, which is
+// only used as a local development fallback.
+val dotenv = dotEnv {
+    addFileIfExists(rootDir.resolve(".env"))
+    addSystemEnv()
 }
 
 val grgit: Grgit? = project.grgit
@@ -106,8 +116,8 @@ repositories {
         name = "JackFredLib-GitHub"
         url = uri("https://maven.pkg.github.com/ponuing/JackFredLib")
         credentials {
-            username = System.getenv("GITHUB_ACTOR")
-            password = System.getenv("GITHUB_TOKEN")
+            username = dotenv["GITHUB_ACTOR"]
+            password = dotenv["GITHUB_TOKEN"]
         }
         content {
             includeGroupAndSubgroups("red.jackf")
@@ -119,8 +129,8 @@ repositories {
         name = "WhereIsIt-GitHub"
         url = uri("https://maven.pkg.github.com/ponuing/WhereIsIt")
         credentials {
-            username = System.getenv("GITHUB_ACTOR")
-            password = System.getenv("GITHUB_TOKEN")
+            username = dotenv["GITHUB_ACTOR"]
+            password = dotenv["GITHUB_TOKEN"]
         }
         content {
             includeGroup("red.jackf")
@@ -298,8 +308,8 @@ publishing {
                 name = "GitHubPackages"
                 url = uri("https://maven.pkg.github.com/ponuing/ChestTracker")
                 credentials {
-                    username = System.getenv("GITHUB_ACTOR")
-                    password = System.getenv("GITHUB_TOKEN")
+                    username = dotenv["GITHUB_ACTOR"]
+                    password = dotenv["GITHUB_TOKEN"]
                 }
             }
         }
@@ -368,7 +378,7 @@ if (canPublish) {
     tasks.named<GithubReleaseTask>("githubRelease") {
         generateChangelogTask?.let { dependsOn(it) }
 
-        authorization = System.getenv("GITHUB_TOKEN")?.let { "Bearer $it" }
+        authorization = dotenv["GITHUB_TOKEN"]?.let { "Bearer $it" }
         owner = properties["github_owner"]!!.toString()
         repo = properties["github_repo"]!!.toString()
         tagName = newTag
