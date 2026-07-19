@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.util.ExtraCodecs;
 import org.jetbrains.annotations.Nullable;
+import red.jackf.chesttracker.impl.qmsync.QMSyncSettings;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -24,8 +25,10 @@ public class Metadata {
                     SearchSettings.CODEC.optionalFieldOf("search")
                             .forGetter(meta -> Optional.of(meta.searchSettings)),
                     VisualSettings.CODEC.optionalFieldOf("visual")
-                            .forGetter(meta -> Optional.of(meta.visualSettings))
-            ).apply(instance, (name, lastModified, loadedTime, usesGlobalDefaults, compatibility, filtering, integrity, search, visual) -> new Metadata(
+                            .forGetter(meta -> Optional.of(meta.visualSettings)),
+                    QMSyncSettings.CODEC.optionalFieldOf("qmsync")
+                            .forGetter(meta -> Optional.of(meta.qmSyncSettings))
+            ).apply(instance, (name, lastModified, loadedTime, usesGlobalDefaults, compatibility, filtering, integrity, search, visual, qmsync) -> new Metadata(
                     name.orElse(null),
                     lastModified.orElse(Instant.now()),
                     loadedTime,
@@ -34,7 +37,8 @@ public class Metadata {
                     filtering.orElseGet(FilteringSettings::new),
                     integrity.orElseGet(IntegritySettings::new),
                     search.orElseGet(SearchSettings::new),
-                    visual.orElseGet(VisualSettings::new)
+                    visual.orElseGet(VisualSettings::new),
+                    qmsync.orElseGet(QMSyncSettings::new)
             ))
     );
 
@@ -48,6 +52,7 @@ public class Metadata {
     private final IntegritySettings integritySettings;
     private final SearchSettings searchSettings;
     private final VisualSettings visualSettings;
+    private final QMSyncSettings qmSyncSettings;
 
     public Metadata(
             @Nullable String name,
@@ -58,7 +63,8 @@ public class Metadata {
             FilteringSettings filteringSettings,
             IntegritySettings integritySettings,
             SearchSettings searchSettings,
-            VisualSettings visualSettings) {
+            VisualSettings visualSettings,
+            QMSyncSettings qmSyncSettings) {
         this.name = name;
         this.lastModified = lastModified;
         this.loadedTime = loadedTime;
@@ -68,6 +74,7 @@ public class Metadata {
         this.integritySettings = integritySettings;
         this.searchSettings = searchSettings;
         this.visualSettings = visualSettings;
+        this.qmSyncSettings = qmSyncSettings;
     }
 
     public static Metadata blank() {
@@ -80,7 +87,8 @@ public class Metadata {
                 new FilteringSettings(),
                 new IntegritySettings(),
                 new SearchSettings(),
-                new VisualSettings()
+                new VisualSettings(),
+                new QMSyncSettings()
         );
     }
 
@@ -104,7 +112,9 @@ public class Metadata {
                 defaults.filteringSettings.copy(),
                 defaults.integritySettings.copy(),
                 defaults.searchSettings.copy(),
-                defaults.visualSettings.copy());
+                defaults.visualSettings.copy(),
+                // sync targets are bound to one server/world; never inherit them from defaults
+                new QMSyncSettings());
     }
 
     public Metadata copyAsDefaults() {
@@ -121,7 +131,9 @@ public class Metadata {
                 settingsSource.filteringSettings.copy(),
                 settingsSource.integritySettings.copy(),
                 settingsSource.searchSettings.copy(),
-                settingsSource.visualSettings.copy());
+                settingsSource.visualSettings.copy(),
+                // sync state stays with this bank rather than following transferable settings
+                this.qmSyncSettings.copy());
     }
 
     public boolean usesGlobalDefaults() {
@@ -169,6 +181,10 @@ public class Metadata {
         return visualSettings;
     }
 
+    public QMSyncSettings getQMSyncSettings() {
+        return qmSyncSettings;
+    }
+
     public Metadata deepCopy() {
         return new Metadata(name,
                 lastModified,
@@ -178,7 +194,8 @@ public class Metadata {
                 filteringSettings.copy(),
                 integritySettings.copy(),
                 searchSettings.copy(),
-                visualSettings.copy());
+                visualSettings.copy(),
+                qmSyncSettings.copy());
     }
 
     public void incrementLoadedTime() {

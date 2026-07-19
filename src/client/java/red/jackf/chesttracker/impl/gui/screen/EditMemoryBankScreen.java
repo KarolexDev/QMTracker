@@ -27,6 +27,9 @@ import red.jackf.chesttracker.impl.memory.metadata.FilteringSettings;
 import red.jackf.chesttracker.impl.memory.metadata.IntegritySettings;
 import red.jackf.chesttracker.impl.memory.metadata.Metadata;
 import red.jackf.chesttracker.impl.memory.metadata.SearchSettings;
+import red.jackf.chesttracker.impl.qmsync.QMSyncHttp;
+import red.jackf.chesttracker.impl.qmsync.QMSyncManager;
+import red.jackf.chesttracker.impl.qmsync.QMSyncSettings;
 import red.jackf.chesttracker.impl.rendering.NameRenderMode;
 import red.jackf.chesttracker.impl.storage.ConnectionSettings;
 import red.jackf.chesttracker.impl.storage.GlobalMemoryBankDefaults;
@@ -71,6 +74,14 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
     private Button pruneOutsideRange;
     @Nullable
     private Button saveGlobalDefaultsButton;
+    @Nullable
+    private EditBox qmsyncUrlBox = null;
+    @Nullable
+    private Button qmsyncConnectButton = null;
+    @Nullable
+    private StringWidget qmsyncStateLabel = null;
+    @Nullable
+    private CycleButton<Boolean> qmsyncPauseToggle = null;
 
     private static int manageWorkingRange = 256;
 
@@ -254,6 +265,7 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
         if (isCurrentLoaded)
             selectorOptions.put(SettingsTab.MANAGE, translatable("chesttracker.gui.editMemoryBank.manage"));
         selectorOptions.put(SettingsTab.SEARCH, translatable("chesttracker.gui.editMemoryBank.search"));
+        selectorOptions.put(SettingsTab.QMSYNC, translatable("chesttracker.gui.editMemoryBank.qmsync"));
         selectorOptions.put(SettingsTab.EMPTY, CommonComponents.EMPTY);
 
         settingsTabSelector.setOptions(selectorOptions);
@@ -263,6 +275,7 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
         setupIntegritySettings();
         if (isCurrentLoaded) setupManagementSettings();
         setupSearchSettings();
+        setupQMSyncSettings();
 
         addSetting(new StringWidget(getSettingsX(0),
                                     getSettingsY(0),
@@ -665,6 +678,199 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
                 ), SettingsTab.SEARCH);
     }
 
+    ////////////
+    // QMSYNC //
+    ////////////
+
+    private void setupQMSyncSettings() {
+        var font = Minecraft.getInstance().font;
+        QMSyncSettings settings = this.memoryBank.metadata().getQMSyncSettings();
+        boolean canConnect = isCurrentLoaded && Minecraft.getInstance().level != null;
+
+        // row 0: URL entry
+        this.qmsyncUrlBox = new CustomEditBox(font,
+                                              getSettingsX(0),
+                                              getSettingsY(0),
+                                              getSettingsWidth(2),
+                                              BUTTON_HEIGHT,
+                                              null,
+                                              CommonComponents.EMPTY);
+        this.qmsyncUrlBox.setMaxLength(256);
+        this.qmsyncUrlBox.setHint(translatable("chesttracker.gui.editMemoryBank.qmsync.urlHint"));
+        this.qmsyncUrlBox.setValue(Optional.ofNullable(settings.url).orElse(""));
+        addSetting(this.qmsyncUrlBox, SettingsTab.QMSYNC);
+
+        // row 1: connect + state
+        var connectButton = Button.builder(translatable("chesttracker.gui.editMemoryBank.qmsync.connect"), b -> qmsyncConnect())
+                                  .tooltip(Tooltip.create(canConnect
+                                          ? translatable("chesttracker.gui.editMemoryBank.qmsync.connect.tooltip")
+                                          : translatable("chesttracker.gui.editMemoryBank.qmsync.connect.notCurrent")))
+                                  .bounds(getSettingsX(0), getSettingsY(1), getSettingsWidth(1), BUTTON_HEIGHT)
+                                  .build();
+        connectButton.active = canConnect;
+        this.qmsyncConnectButton = connectButton;
+        addSetting(connectButton, SettingsTab.QMSYNC);
+
+        this.qmsyncStateLabel = new StringWidget(getSettingsX(1),
+                                                 getSettingsY(1),
+                                                 getSettingsWidth(1),
+                                                 BUTTON_HEIGHT,
+                                                 qmsyncStateText(settings),
+                                                 font);
+        addSetting(this.qmsyncStateLabel, SettingsTab.QMSYNC);
+
+        // row 2: pause + forget
+        this.qmsyncPauseToggle = CycleButton.onOffBuilder(settings.paused)
+                .withTooltip(b -> Tooltip.create(translatable("chesttracker.gui.editMemoryBank.qmsync.paused.tooltip")))
+                .create(getSettingsX(0),
+                        getSettingsY(2),
+                        getSettingsWidth(1),
+                        BUTTON_HEIGHT,
+                        translatable("chesttracker.gui.editMemoryBank.qmsync.paused"),
+                        (cycleButton, newValue) -> {
+                            this.memoryBank.metadata().getQMSyncSettings().paused = newValue;
+                            refreshQMSyncStateLabel();
+                        });
+        addSetting(this.qmsyncPauseToggle, SettingsTab.QMSYNC);
+
+        addSetting(new HoldToConfirmButton(getSettingsX(1),
+                                           getSettingsY(2),
+                                           getSettingsWidth(1),
+                                           BUTTON_HEIGHT,
+                                           translatable("chesttracker.gui.editMemoryBank.qmsync.forget"),
+                                           GuiConstants.ARE_YOU_SURE_BUTTON_HOLD_TIME,
+                                           this::qmsyncForget), SettingsTab.QMSYNC);
+
+        // row 3: interval + chat notifications
+        int currentInterval = QMSyncSettings.INTERVAL_SECONDS_OPTIONS.contains(settings.intervalSeconds)
+                ? settings.intervalSeconds
+                : QMSyncSettings.DEFAULT_INTERVAL_SECONDS;
+        addSetting(new SteppedSlider<>(getSettingsX(0),
+                                       getSettingsY(3),
+                                       getSettingsWidth(1),
+                                       BUTTON_HEIGHT,
+                                       QMSyncSettings.INTERVAL_SECONDS_OPTIONS,
+                                       currentInterval,
+                                       seconds -> translatable("chesttracker.gui.editMemoryBank.qmsync.interval", seconds)) {
+            @Override
+            protected void applyValue() {
+                EditMemoryBankScreen.this.memoryBank.metadata().getQMSyncSettings().intervalSeconds = getSelected();
+            }
+        }, SettingsTab.QMSYNC);
+
+        addSetting(CycleButton.<QMSyncSettings.ChatNotifications>builder(mode -> mode.label, settings.chatNotifications)
+                .withValues(QMSyncSettings.ChatNotifications.values())
+                .withTooltip(b -> Tooltip.create(translatable("chesttracker.gui.editMemoryBank.qmsync.notifications.tooltip")))
+                .create(getSettingsX(1),
+                        getSettingsY(3),
+                        getSettingsWidth(1),
+                        BUTTON_HEIGHT,
+                        translatable("chesttracker.gui.editMemoryBank.qmsync.notifications"),
+                        (cycleButton, newValue) -> this.memoryBank.metadata().getQMSyncSettings().chatNotifications = newValue
+                ), SettingsTab.QMSYNC);
+
+        // row 4: content filters
+        addSetting(CycleButton.onOffBuilder(settings.syncEnderChest)
+                .withTooltip(b -> Tooltip.create(translatable("chesttracker.gui.editMemoryBank.qmsync.enderChest.tooltip")))
+                .create(getSettingsX(0),
+                        getSettingsY(4),
+                        getSettingsWidth(1),
+                        BUTTON_HEIGHT,
+                        translatable("chesttracker.gui.editMemoryBank.qmsync.enderChest"),
+                        (cycleButton, newValue) -> this.memoryBank.metadata().getQMSyncSettings().syncEnderChest = newValue
+                ), SettingsTab.QMSYNC);
+
+        addSetting(CycleButton.onOffBuilder(settings.syncContainerNames)
+                .withTooltip(b -> Tooltip.create(translatable("chesttracker.gui.editMemoryBank.qmsync.names.tooltip")))
+                .create(getSettingsX(1),
+                        getSettingsY(4),
+                        getSettingsWidth(1),
+                        BUTTON_HEIGHT,
+                        translatable("chesttracker.gui.editMemoryBank.qmsync.names"),
+                        (cycleButton, newValue) -> this.memoryBank.metadata().getQMSyncSettings().syncContainerNames = newValue
+                ), SettingsTab.QMSYNC);
+    }
+
+    private Component qmsyncStateText(QMSyncSettings settings) {
+        if (settings.isActive()) return translatable("chesttracker.gui.editMemoryBank.qmsync.state.active");
+        if (settings.isConnected()) return translatable("chesttracker.gui.editMemoryBank.qmsync.state.paused");
+        return translatable("chesttracker.gui.editMemoryBank.qmsync.state.notConnected");
+    }
+
+    private void refreshQMSyncStateLabel() {
+        if (this.qmsyncStateLabel != null)
+            this.qmsyncStateLabel.setMessage(qmsyncStateText(this.memoryBank.metadata().getQMSyncSettings()));
+    }
+
+    private void qmsyncConnect() {
+        if (this.qmsyncUrlBox == null || this.qmsyncStateLabel == null) return;
+        var coordinate = Coordinate.getCurrent();
+        var player = Minecraft.getInstance().player;
+        if (coordinate.isEmpty() || player == null || !isCurrentLoaded) return;
+
+        var parsed = QMSyncHttp.parseBaseUrl(this.qmsyncUrlBox.getValue());
+        if (parsed == null) {
+            this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.invalidUrl"));
+            return;
+        }
+
+        if (this.qmsyncConnectButton != null) this.qmsyncConnectButton.active = false;
+        this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.connecting"));
+
+        final String bankId = this.memoryBank.id();
+        var identity = new QMSyncHttp.Identity(player.getUUID(),
+                                               player.getName().getString(),
+                                               coordinate.get().id(),
+                                               coordinate.get().userFriendlyName());
+
+        QMSyncHttp.handshake(parsed.toString(), identity).whenComplete((result, throwable) ->
+                Minecraft.getInstance().execute(() -> {
+                    if (this.qmsyncConnectButton != null) this.qmsyncConnectButton.active = true;
+                    var outcome = throwable != null ? QMSyncHttp.Result.CONNECTION_FAILED : result;
+
+                    if (outcome == QMSyncHttp.Result.SYNCED) {
+                        // apply to the screen's working copy (persists via Save)...
+                        QMSyncSettings viewSettings = this.memoryBank.metadata().getQMSyncSettings();
+                        viewSettings.url = parsed.toString();
+                        viewSettings.enabled = true;
+                        viewSettings.paused = false;
+                        // ...and to the live bank immediately, so sync starts without needing Save
+                        MemoryBankAccessImpl.INSTANCE.getLoadedInternal().ifPresent(bank -> {
+                            if (!bank.getId().equals(bankId)) return;
+                            QMSyncSettings live = bank.getMetadata().getQMSyncSettings();
+                            live.url = parsed.toString();
+                            live.enabled = true;
+                            live.paused = false;
+                            QMSyncManager.INSTANCE.markActivated(bankId);
+                            MemoryBankAccessImpl.INSTANCE.save();
+                        });
+                        if (this.qmsyncPauseToggle != null) this.qmsyncPauseToggle.setValue(false);
+                        refreshQMSyncStateLabel();
+                    } else if (this.qmsyncStateLabel != null) {
+                        this.qmsyncStateLabel.setMessage(switch (outcome) {
+                            case ACCESS_DENIED -> translatable("chesttracker.qmsync.accessDenied");
+                            case URL_NOT_FOUND -> translatable("chesttracker.qmsync.urlNotFound");
+                            default -> translatable("chesttracker.gui.editMemoryBank.qmsync.state.failed");
+                        });
+                    }
+                }));
+    }
+
+    private void qmsyncForget(HoldToConfirmButton button) {
+        this.memoryBank.metadata().getQMSyncSettings().forget();
+        if (isCurrentLoaded) {
+            MemoryBankAccessImpl.INSTANCE.getLoadedInternal().ifPresent(bank -> {
+                if (!bank.getId().equals(this.memoryBank.id())) return;
+                bank.getMetadata().getQMSyncSettings().forget();
+                QMSyncManager.INSTANCE.deactivate();
+                MemoryBankAccessImpl.INSTANCE.save();
+            });
+        }
+        if (this.qmsyncUrlBox != null) this.qmsyncUrlBox.setValue("");
+        if (this.qmsyncPauseToggle != null) this.qmsyncPauseToggle.setValue(false);
+        refreshQMSyncStateLabel();
+    }
+
     ///////////
     // UTILS //
     ///////////
@@ -786,6 +992,7 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
         INTEGRITY,
         MANAGE,
         SEARCH,
+        QMSYNC,
         EMPTY
     }
 }

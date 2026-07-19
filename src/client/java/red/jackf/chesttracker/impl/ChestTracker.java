@@ -35,6 +35,8 @@ import red.jackf.chesttracker.impl.memory.MemoryIntegrity;
 import red.jackf.chesttracker.impl.memory.MemoryKeyImpl;
 import red.jackf.chesttracker.impl.memory.key.OverrideInfo;
 import red.jackf.chesttracker.impl.providers.InteractionTrackerImpl;
+import red.jackf.chesttracker.impl.qmsync.QMSyncCommand;
+import red.jackf.chesttracker.impl.qmsync.QMSyncManager;
 import red.jackf.chesttracker.impl.providers.ProviderHandler;
 import red.jackf.chesttracker.impl.providers.ScreenCloseContextImpl;
 import red.jackf.chesttracker.impl.providers.ScreenOpenContextImpl;
@@ -181,6 +183,8 @@ public class ChestTracker implements ClientModInitializer {
         ProviderHandler.INSTANCE.setupEvents();
         InteractionTrackerImpl.setup();
         MemoryIntegrity.setup();
+        QMSyncCommand.register();
+        QMSyncManager.INSTANCE.setup();
         ImagePixelReader.setup();
         Storage.setup();
         DeveloperOverlay.setup();
