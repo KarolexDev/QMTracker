@@ -40,3 +40,7 @@ replay_*.log
 *.hprof
 *.jfr
 /.env
+
+# doc scripts (regenerated intermediate data)
+
+doc/class_diagram_data.json
