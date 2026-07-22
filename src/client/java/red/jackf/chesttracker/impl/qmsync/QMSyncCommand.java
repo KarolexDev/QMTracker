@@ -1,6 +1,7 @@
 package red.jackf.chesttracker.impl.qmsync;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandManager;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource;
@@ -53,7 +54,8 @@ public class QMSyncCommand {
                 coordinate.get().userFriendlyName()
         );
 
-        source.sendFeedback(Component.translatable("chesttracker.qmsync.connecting", parsed.toString()));
+        source.sendFeedback(Component.translatable("chesttracker.qmsync.connecting", parsed.toString())
+                                     .withStyle(ChatFormatting.GRAY));
 
         QMSyncHttp.handshake(parsed.toString(), identity).whenComplete((result, throwable) ->
                 source.getClient().execute(() -> {
@@ -71,11 +73,13 @@ public class QMSyncCommand {
                         settings.paused = false;
                         QMSyncManager.INSTANCE.markActivated(bankId);
                         MemoryBankAccessImpl.INSTANCE.save();
-                        source.sendFeedback(Component.translatable("chesttracker.qmsync.synced"));
+                        source.sendFeedback(Component.translatable("chesttracker.qmsync.synced")
+                                                     .withStyle(ChatFormatting.GREEN));
                     } else {
                         source.sendError(switch (outcome) {
                             case ACCESS_DENIED -> Component.translatable("chesttracker.qmsync.accessDenied");
-                            case URL_NOT_FOUND -> Component.translatable("chesttracker.qmsync.urlNotFound");
+                            case URL_NOT_FOUND -> Component.translatable("chesttracker.qmsync.urlNotFound", parsed.getHost());
+                            case NOT_A_QMSYNC_SERVER -> Component.translatable("chesttracker.qmsync.notAQMSyncServer", parsed.getHost());
                             default -> Component.translatable("chesttracker.qmsync.connectionFailed");
                         });
                     }
@@ -94,7 +98,7 @@ public class QMSyncCommand {
         settings.forget();
         QMSyncManager.INSTANCE.deactivate();
         MemoryBankAccessImpl.INSTANCE.save();
-        source.sendFeedback(Component.translatable("chesttracker.qmsync.stopped"));
+        source.sendFeedback(Component.translatable("chesttracker.qmsync.stopped").withStyle(ChatFormatting.YELLOW));
         return 1;
     }
 
@@ -108,31 +112,36 @@ public class QMSyncCommand {
         MemoryBankImpl bank = bankOpt.get();
         QMSyncSettings settings = bank.getMetadata().getQMSyncSettings();
 
-        source.sendFeedback(Component.translatable("chesttracker.qmsync.status.header"));
+        source.sendFeedback(Component.translatable("chesttracker.qmsync.status.header").withStyle(ChatFormatting.GOLD));
 
         if (settings.isActive()) {
-            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.active", settings.url));
+            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.active", settings.url)
+                                         .withStyle(ChatFormatting.GREEN));
         } else if (settings.isConnected()) {
-            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.paused", settings.url));
+            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.paused", settings.url)
+                                         .withStyle(ChatFormatting.YELLOW));
         } else {
-            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.inactive"));
+            source.sendFeedback(Component.translatable("chesttracker.qmsync.status.inactive")
+                                         .withStyle(ChatFormatting.GRAY));
         }
 
         Coordinate.getCurrent().ifPresent(coordinate ->
                 source.sendFeedback(Component.translatable("chesttracker.qmsync.status.server",
-                        coordinate.userFriendlyName(), coordinate.id())));
+                        coordinate.userFriendlyName(), coordinate.id()).withStyle(ChatFormatting.GRAY)));
 
         source.sendFeedback(Component.translatable("chesttracker.qmsync.status.player",
-                source.getPlayer().getName().getString(), source.getPlayer().getUUID().toString()));
+                source.getPlayer().getName().getString(), source.getPlayer().getUUID().toString())
+                                     .withStyle(ChatFormatting.GRAY));
 
         Optional<Instant> lastSuccess = QMSyncManager.INSTANCE.getLastSuccess();
         if (lastSuccess.isPresent()) {
             long secondsAgo = Duration.between(lastSuccess.get(), Instant.now()).toSeconds();
             source.sendFeedback(Component.translatable("chesttracker.qmsync.status.lastSync",
-                    secondsAgo, QMSyncManager.INSTANCE.getLastResult().orElse("unknown")));
+                    secondsAgo, QMSyncManager.INSTANCE.getLastResult().orElse("unknown"))
+                                         .withStyle(ChatFormatting.GREEN));
         } else {
             source.sendFeedback(Component.translatable("chesttracker.qmsync.status.lastSync.never",
-                    QMSyncManager.INSTANCE.getLastResult().orElse("-")));
+                    QMSyncManager.INSTANCE.getLastResult().orElse("-")).withStyle(ChatFormatting.YELLOW));
         }
 
         int keys = bank.getMemories().size();
@@ -141,7 +150,8 @@ public class QMSyncCommand {
                 .flatMap(key -> key.getMemories().values().stream())
                 .mapToInt(memory -> memory.items().size())
                 .sum();
-        source.sendFeedback(Component.translatable("chesttracker.qmsync.status.counts", containers, stacks, keys));
+        source.sendFeedback(Component.translatable("chesttracker.qmsync.status.counts", containers, stacks, keys)
+                                     .withStyle(ChatFormatting.GRAY));
 
         return 1;
     }

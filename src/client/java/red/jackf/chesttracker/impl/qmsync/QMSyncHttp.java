@@ -34,7 +34,10 @@ public class QMSyncHttp {
     public enum Result {
         SYNCED,
         ACCESS_DENIED,
+        /** The host doesn't resolve at all. */
         URL_NOT_FOUND,
+        /** The host answered, but doesn't speak QMSync. */
+        NOT_A_QMSYNC_SERVER,
         CONNECTION_FAILED
     }
 
@@ -100,7 +103,8 @@ public class QMSyncHttp {
 
     private static Result classify(HttpResponse<String> response) {
         int code = response.statusCode();
-        if (code == 404) return Result.URL_NOT_FOUND;
+        // host is up but has nothing that handles our endpoint
+        if (code == 404 || code == 405 || code == 410 || code == 501) return Result.NOT_A_QMSYNC_SERVER;
         if (code == 401 || code == 403) return Result.ACCESS_DENIED;
         if (code < 200 || code >= 300) return Result.CONNECTION_FAILED;
 
@@ -114,7 +118,7 @@ public class QMSyncHttp {
         } catch (JsonParseException | IllegalStateException | UnsupportedOperationException ignored) {
         }
         // 2xx without a recognisable body isn't a QMSync endpoint
-        return Result.URL_NOT_FOUND;
+        return Result.NOT_A_QMSYNC_SERVER;
     }
 
     private static Result classifyError(Throwable throwable) {

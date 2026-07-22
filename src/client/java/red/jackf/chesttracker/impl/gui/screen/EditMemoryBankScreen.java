@@ -792,9 +792,11 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
     }
 
     private Component qmsyncStateText(QMSyncSettings settings) {
-        if (settings.isActive()) return translatable("chesttracker.gui.editMemoryBank.qmsync.state.active");
-        if (settings.isConnected()) return translatable("chesttracker.gui.editMemoryBank.qmsync.state.paused");
-        return translatable("chesttracker.gui.editMemoryBank.qmsync.state.notConnected");
+        if (settings.isActive())
+            return translatable("chesttracker.gui.editMemoryBank.qmsync.state.active").withStyle(ChatFormatting.GREEN);
+        if (settings.isConnected())
+            return translatable("chesttracker.gui.editMemoryBank.qmsync.state.paused").withStyle(ChatFormatting.YELLOW);
+        return translatable("chesttracker.gui.editMemoryBank.qmsync.state.notConnected").withStyle(ChatFormatting.GRAY);
     }
 
     private void refreshQMSyncStateLabel() {
@@ -810,12 +812,14 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
 
         var parsed = QMSyncHttp.parseBaseUrl(this.qmsyncUrlBox.getValue());
         if (parsed == null) {
-            this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.invalidUrl"));
+            this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.invalidUrl")
+                                                     .withStyle(ChatFormatting.RED));
             return;
         }
 
         if (this.qmsyncConnectButton != null) this.qmsyncConnectButton.active = false;
-        this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.connecting"));
+        this.qmsyncStateLabel.setMessage(translatable("chesttracker.gui.editMemoryBank.qmsync.state.connecting")
+                                                 .withStyle(ChatFormatting.GRAY));
 
         final String bankId = this.memoryBank.id();
         var identity = new QMSyncHttp.Identity(player.getUUID(),
@@ -847,11 +851,12 @@ public class EditMemoryBankScreen extends BaseUtilScreen {
                         if (this.qmsyncPauseToggle != null) this.qmsyncPauseToggle.setValue(false);
                         refreshQMSyncStateLabel();
                     } else if (this.qmsyncStateLabel != null) {
-                        this.qmsyncStateLabel.setMessage(switch (outcome) {
+                        this.qmsyncStateLabel.setMessage((switch (outcome) {
                             case ACCESS_DENIED -> translatable("chesttracker.qmsync.accessDenied");
-                            case URL_NOT_FOUND -> translatable("chesttracker.qmsync.urlNotFound");
+                            case URL_NOT_FOUND -> translatable("chesttracker.gui.editMemoryBank.qmsync.state.urlNotFound");
+                            case NOT_A_QMSYNC_SERVER -> translatable("chesttracker.gui.editMemoryBank.qmsync.state.notAQMSyncServer");
                             default -> translatable("chesttracker.gui.editMemoryBank.qmsync.state.failed");
-                        });
+                        }).withStyle(ChatFormatting.RED));
                     }
                 }));
     }

@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.serialization.DynamicOps;
 import com.mojang.serialization.JsonOps;
+import net.minecraft.ChatFormatting;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -114,7 +115,7 @@ public class QMSyncManager {
             resetSession();
             this.activeBankId = bank.getId();
             if (settings.chatNotifications == QMSyncSettings.ChatNotifications.ALL)
-                sendChat(client, Component.translatable("chesttracker.qmsync.resumed", settings.url));
+                sendChat(client, Component.translatable("chesttracker.qmsync.resumed", settings.url), ChatFormatting.GREEN);
         }
 
         long now = System.currentTimeMillis();
@@ -190,17 +191,18 @@ public class QMSyncManager {
             this.lastResult = skipped ? "up to date" : "synced";
             if (failing) {
                 this.failing = false;
-                if (notify) sendChat(client, Component.translatable("chesttracker.qmsync.reestablished"));
+                if (notify) sendChat(client, Component.translatable("chesttracker.qmsync.reestablished"), ChatFormatting.GREEN);
             }
         } else {
             this.lastResult = switch (result) {
                 case ACCESS_DENIED -> "access denied";
                 case URL_NOT_FOUND -> "URL not found";
+                case NOT_A_QMSYNC_SERVER -> "not a QMSync server";
                 default -> "connection failed";
             };
             if (!failing) {
                 this.failing = true;
-                if (notify) sendChat(client, Component.translatable("chesttracker.qmsync.syncFailed", this.lastResult));
+                if (notify) sendChat(client, Component.translatable("chesttracker.qmsync.syncFailed", this.lastResult), ChatFormatting.RED);
             }
         }
     }
@@ -224,9 +226,11 @@ public class QMSyncManager {
         }
     }
 
-    private void sendChat(Minecraft client, Component message) {
+    private void sendChat(Minecraft client, Component message, ChatFormatting colour) {
         if (client.player == null) return;
-        client.player.displayClientMessage(Component.literal("[QMSync] ").append(message), false);
+        client.player.displayClientMessage(
+                Component.literal("[QMSync] ").withStyle(ChatFormatting.GRAY)
+                         .append(message.copy().withStyle(colour)), false);
     }
 
     private static String sha256(String input) {
