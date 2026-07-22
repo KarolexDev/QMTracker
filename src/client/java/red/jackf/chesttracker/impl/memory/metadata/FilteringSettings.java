@@ -37,7 +37,9 @@ public class FilteringSettings {
         ));
     });
 
-    public boolean manualMode = false;
+    // opt-in by default: a container is only ever recorded once the player marks it via the inventory button,
+    // so nothing the player hasn't deliberately added can reach a QMSync website
+    public boolean manualMode = true;
     public boolean onlyRememberNamed = false;
     public RememberedContainers rememberedContainers = RememberedContainers.ALL;
     public boolean rememberEnderChests = true;
